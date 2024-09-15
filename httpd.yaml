@@ -1,0 +1,86 @@
+---
+- name: Install HTTPS website on CentOS 7
+  hosts: centos_servers
+  become: true
+  vars:
+    domain_name: example.com        # Change to your domain or IP address
+    website_content: "hello world"  # Customizable website content
+    certificate_days: 100           # Certificate validity in days
+    web_root: /var/www/html
+    ssl_cert_path: /etc/pki/tls/certs
+    ssl_key_path: /etc/pki/tls/private
+
+  tasks:
+
+    - name: Ensure httpd is installed
+      ansible.builtin.yum:
+        name: httpd
+        state: present
+
+    - name: Start and enable httpd service
+      ansible.builtin.service:
+        name: httpd
+        state: started
+        enabled: true
+
+    - name: Install mod_ssl for HTTPS support
+      ansible.builtin.yum:
+        name: mod_ssl
+        state: present
+
+    - name: Create web root directory if it doesn't exist
+      ansible.builtin.file:
+        path: "{{ web_root }}"
+        state: directory
+
+    - name: Create index.html with custom content
+      ansible.builtin.copy:
+        dest: "{{ web_root }}/index.html"
+        content: "{{ website_content }}"
+
+    - name: Generate self-signed SSL certificate
+      ansible.builtin.command: >
+        openssl req -new -x509 -days {{ certificate_days }} -nodes
+        -out {{ ssl_cert_path }}/{{ domain_name }}.crt
+        -keyout {{ ssl_key_path }}/{{ domain_name }}.key
+        -subj "/C=US/ST=State/L=City/O=Organization/OU=Department/CN={{ domain_name }}"
+      args:
+        creates: "{{ ssl_cert_path }}/{{ domain_name }}.crt"
+
+    - name: Configure SSL virtual host
+      ansible.builtin.template:
+        src: ssl.conf.j2
+        dest: /etc/httpd/conf.d/ssl.conf
+      notify:
+        - Restart httpd
+
+    - name: Ensure firewalld is installed
+      ansible.builtin.yum:
+        name: firewalld
+        state: present
+
+    - name: Ensure firewalld is running
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Open port 443 in the firewall
+      ansible.posix.firewalld:
+        port: 443/tcp
+        permanent: yes
+        state: enabled
+      notify:
+        - Reload firewalld
+
+
+  handlers:
+    - name: Restart httpd
+      ansible.builtin.service:
+        name: httpd
+        state: restarted
+
+    - name: Reload firewalld
+      ansible.builtin.service:
+        name: firewalld
+        state: reloaded

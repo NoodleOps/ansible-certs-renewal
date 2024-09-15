@@ -1,0 +1,31 @@
+<VirtualHost _default_:443>
+    ServerName {{ domain_name }}
+
+    DocumentRoot "{{ web_root }}"
+
+    ErrorLog logs/ssl_error_log
+    TransferLog logs/ssl_access_log
+    LogLevel warn
+
+    SSLEngine on
+    SSLCertificateFile "{{ ssl_cert_path }}/{{ domain_name }}.crt"
+    SSLCertificateKeyFile "{{ ssl_key_path }}/{{ domain_name }}.key"
+
+    <Files ~ "\.(cgi|shtml|phtml|php3?)$">
+        SSLOptions +StdEnvVars
+    </Files>
+
+    <Directory "{{ web_root }}">
+        Options Indexes FollowSymLinks
+        AllowOverride None
+        Require all granted
+        SSLOptions +StdEnvVars
+    </Directory>
+
+    BrowserMatch "MSIE [2-6]" \
+        nokeepalive ssl-unclean-shutdown \
+        downgrade-1.0 force-response-1.0
+
+    CustomLog logs/ssl_request_log \
+        "%t %h %{SSL_PROTOCOL}x %{SSL_CIPHER}x \"%r\" %b"
+</VirtualHost>

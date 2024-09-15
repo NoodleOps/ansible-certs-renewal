@@ -1,0 +1,84 @@
+---
+- name: Renew self-signed SSL certificate for 1 year and display certificate dates
+  hosts: centos_servers
+  become: true
+  gather_facts: yes
+  vars:
+    domain_name: example.com        # Change to your domain or IP address
+    certificate_days: 365           # Certificate validity in days (1 year)
+    ssl_cert_path: /etc/pki/tls/certs
+    ssl_key_path: /etc/pki/tls/private
+
+  tasks:
+    - name: Display OS Version
+      debug:
+        msg: "OS Version: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Fail if OS is not CentOS 7
+      fail:
+        msg: "This playbook only supports CentOS 7."
+      when: not (ansible_distribution == "CentOS" and ansible_distribution_major_version == "7")
+
+    - name: Install Python 3 and pip if not present
+      yum:
+        name:
+          - python3
+          - python3-pip
+        state: present
+
+    - name: Ensure the cryptography library is installed
+      pip:
+        name: cryptography
+        state: latest
+        executable: pip3
+
+    - name: Check if current certificate exists
+      stat:
+        path: "{{ ssl_cert_path }}/{{ domain_name }}.crt"
+      register: cert_stat
+
+    - name: Get current certificate expiration date
+      community.crypto.x509_certificate_info:
+        path: "{{ ssl_cert_path }}/{{ domain_name }}.crt"
+      register: current_cert_info
+      when: cert_stat.stat.exists
+
+    - name: Display current certificate expiration date
+      debug:
+        msg: >
+          Current certificate expiration date for {{ domain_name }}: {{ current_cert_info.validity_end }}.
+      when: cert_stat.stat.exists
+
+    - name: Renew self-signed SSL certificate for 1 year
+      community.crypto.x509_certificate:
+        path: "{{ ssl_cert_path }}/{{ domain_name }}.crt"
+        privatekey_path: "{{ ssl_key_path }}/{{ domain_name }}.key"
+        common_name: "{{ domain_name }}"
+        state: present
+        selfsigned: yes
+        days: "{{ certificate_days }}"
+        country_name: 'US'
+        organization_name: 'Organization'
+        organizational_unit_name: 'Department'
+        locality_name: 'City'
+        state_or_province_name: 'State'
+        subject_alt_name:
+          - DNS:{{ domain_name }}
+      notify:
+        - Restart httpd
+
+    - name: Get new certificate expiration date
+      community.crypto.x509_certificate_info:
+        path: "{{ ssl_cert_path }}/{{ domain_name }}.crt"
+      register: new_cert_info
+
+    - name: Display new certificate expiration date
+      debug:
+        msg: >
+          New certificate expiration date for {{ domain_name }}: {{ new_cert_info.validity_end }}.
+
+  handlers:
+    - name: Restart httpd
+      service:
+        name: httpd
+        state: restarted

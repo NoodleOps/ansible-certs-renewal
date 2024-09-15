@@ -1,0 +1,64 @@
+---
+- name: Renew self-signed SSL certificate for 1 year and display certificate dates
+  hosts: centos_servers
+  become: true
+  gather_facts: yes
+  vars:
+    domain_name: example.com        # Change to your domain or IP address
+    certificate_days: 365           # Certificate validity in days (1 year)
+    ssl_cert_path: /etc/pki/tls/certs
+    ssl_key_path: /etc/pki/tls/private
+
+  tasks:
+    - name: Display OS Version
+      debug:
+        msg: "OS Version: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+    - name: Fail if OS is not CentOS 7
+      fail:
+        msg: "This playbook only supports CentOS 7."
+      when: not (ansible_distribution == "CentOS" and ansible_distribution_major_version == "7")
+
+    - name: Check current certificate expiration date
+      command: openssl x509 -enddate -noout -in {{ ssl_cert_path }}/{{ domain_name }}.crt
+      register: current_cert_expiry
+      failed_when: false  # Continue even if the certificate file doesn't exist
+
+    - name: Parse current certificate expiration date
+      set_fact:
+        cert_expiry_date: "{{ current_cert_expiry.stdout | regex_replace('notAfter=', '') | trim }}"
+      when: current_cert_expiry.stdout is defined
+
+    - name: Display current certificate expiration date
+      debug:
+        msg: >
+          Current certificate expiration date for {{ domain_name }}: {{ cert_expiry_date | default('Certificate not found') }}.
+      when: cert_expiry_date is defined
+
+    - name: Renew self-signed SSL certificate for 1 year
+      command: >
+        openssl req -new -x509 -days {{ certificate_days }} -nodes
+        -out {{ ssl_cert_path }}/{{ domain_name }}.crt
+        -keyout {{ ssl_key_path }}/{{ domain_name }}.key
+        -subj "/C=US/ST=State/L=City/O=Organization/OU=Department/CN={{ domain_name }}"
+      notify:
+        - Restart httpd
+
+    - name: Check new certificate expiration date
+      command: openssl x509 -enddate -noout -in {{ ssl_cert_path }}/{{ domain_name }}.crt
+      register: new_cert_expiry
+
+    - name: Parse new certificate expiration date
+      set_fact:
+        new_cert_expiry_date: "{{ new_cert_expiry.stdout | regex_replace('notAfter=', '') | trim }}"
+
+    - name: Display new certificate expiration date
+      debug:
+        msg: >
+          New certificate expiration date for {{ domain_name }}: {{ new_cert_expiry_date }}.
+
+  handlers:
+    - name: Restart httpd
+      service:
+        name: httpd
+        state: restarted
