@@ -1,2 +1,4 @@
 # requirements.txt
-# Leave empty or include necessary Python packages
+
+# Enable for hashi_vault plugin
+# hvac  

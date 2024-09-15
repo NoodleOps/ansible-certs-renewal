@@ -68,11 +68,10 @@
     - name: Open port 443 in the firewall
       ansible.posix.firewalld:
         port: 443/tcp
-        permanent: yes
+        permanent: true
         state: enabled
       notify:
         - Reload firewalld
-
 
   handlers:
     - name: Restart httpd

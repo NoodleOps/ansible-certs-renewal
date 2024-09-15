@@ -2,12 +2,14 @@
 - name: Renew self-signed SSL certificate for 1 year and display certificate dates
   hosts: centos_servers
   become: true
-  gather_facts: yes
+  gather_facts: true
   vars:
     domain_name: example.com        # Change to your domain or IP address
     certificate_days: 365           # Certificate validity in days (1 year)
     ssl_cert_path: /etc/pki/tls/certs
     ssl_key_path: /etc/pki/tls/private
+    vault_url: "http://127.0.0.1:8200"         # Vault server URL
+    vault_token: "s.yourvaulttoken"            # Vault token
 
   tasks:
     - name: Display OS Version
@@ -56,6 +58,22 @@
       debug:
         msg: >
           New certificate expiration date for {{ domain_name }}: {{ new_cert_expiry_date }}.
+
+    # Integration with HashiCorp Vault
+    # Documentation : https://docs.ansible.com/ansible/latest/collections/community/hashi_vault/vault_write_module.html#ansible-collections-community-hashi-vault-vault-write-module
+    # This part of the playbook has not been tested yet, as I currently do not have access to a HashiCorp environment.
+
+    # - name: Push the certificate and key to HashiCorp Vault
+    #   community.hashi_vault.vault_write:
+    #     url: "{{ vault_url }}"
+    #     token: "{{ vault_token }}"
+    #     data:
+    #       certificate: "{{ ssl_cert_path }}/{{ domain_name }}.crt"
+    #       private_key: "{{ ssl_key_path }}/{{ domain_name }}.key"
+
+    # - name: Confirm certificate stored in Vault
+    #   debug:
+    #     msg: "Certificate and key have been successfully stored in Vault at {{ ssl_cert_path }}"
 
   handlers:
     - name: Restart httpd
