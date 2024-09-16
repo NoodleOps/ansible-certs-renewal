@@ -38,15 +38,6 @@
         dest: "{{ web_root }}/index.html"
         content: "{{ website_content }}"
 
-    - name: Generate self-signed SSL certificate
-      ansible.builtin.command: >
-        openssl req -new -x509 -days {{ certificate_days }} -nodes
-        -out {{ ssl_cert_path }}/{{ domain_name }}.crt
-        -keyout {{ ssl_key_path }}/{{ domain_name }}.key
-        -subj "/C=US/ST=State/L=City/O=Organization/OU=Department/CN={{ domain_name }}"
-      args:
-        creates: "{{ ssl_cert_path }}/{{ domain_name }}.crt"
-
     - name: Configure SSL virtual host
       ansible.builtin.template:
         src: ssl.conf.j2
